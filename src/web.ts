@@ -169,6 +169,8 @@ export class CameraPreviewWeb extends WebPlugin implements CameraPreviewPlugin {
       video.style.setProperty('opacity', _options['opacity'].toString());
     }
   }
+  async startRecordVideo(_options: CameraPreviewOptions): Promise<any> { };
+  async stopRecordVideo(): Promise<any> { };
 }
 
 const CameraPreview = new CameraPreviewWeb();

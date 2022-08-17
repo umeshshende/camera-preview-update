@@ -56,6 +56,7 @@ export type CameraPreviewFlashMode = 'off' | 'on' | 'auto' | 'red-eye' | 'torch'
 export interface CameraOpacityOptions {
   /** The percent opacity to set for camera view, default 1 */
   opacity?: number;
+
 }
 
 export interface CameraPreviewPlugin {
@@ -69,4 +70,6 @@ export interface CameraPreviewPlugin {
   setFlashMode(options: { flashMode: CameraPreviewFlashMode | string }): Promise<void>;
   flip(): Promise<void>;
   setOpacity(options: CameraOpacityOptions): Promise<{}>;
+  startRecordVideo(options: CameraPreviewOptions): Promise<{}>;
+  stopRecordVideo(): Promise<{}>;
 }

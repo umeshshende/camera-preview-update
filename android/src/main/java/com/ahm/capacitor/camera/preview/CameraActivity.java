@@ -35,7 +35,15 @@ import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.widget.FrameLayout;
 import android.widget.RelativeLayout;
+import androidx.annotation.NonNull;
 import androidx.exifinterface.media.ExifInterface;
+
+import com.amazonaws.ivs.broadcast.BroadcastException;
+import com.amazonaws.ivs.broadcast.BroadcastSession;
+import com.amazonaws.ivs.broadcast.Presets;
+import com.pedro.encoder.input.video.CameraHelper;
+import com.pedro.rtmp.utils.ConnectCheckerRtmp;
+import com.pedro.rtplibrary.rtmp.RtmpCamera1;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -45,7 +53,57 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
-public class CameraActivity extends Fragment {
+
+public class CameraActivity extends Fragment   implements  ConnectCheckerRtmp  {
+
+    BroadcastSession.Listener broadcastListener =
+            new BroadcastSession.Listener() {
+                @Override
+                public void onStateChanged(@NonNull BroadcastSession.State state) {
+                    Log.d(TAG, "State=" + state);
+                    System.out.println("AWS onStateChanged");
+                }
+                @Override
+                public void onError(@NonNull BroadcastException e) {
+                    System.out.println("AWS onError"+e.getMessage());
+                }
+
+            };
+
+    @Override
+    public void onAuthErrorRtmp() {
+        System.out.println("RTMP onAuthErrorRtmp");
+    }
+
+    @Override
+    public void onAuthSuccessRtmp() {
+            System.out.println("RTMP Auth Connected");
+    }
+
+    @Override
+    public void onConnectionFailedRtmp(@NonNull String s) {
+        System.out.println("RTMP  onConnectionFailedRtmp"+s);
+    }
+
+    @Override
+    public void onConnectionStartedRtmp(@NonNull String s) {
+        System.out.println("RTMP  onConnectionStartedRtmp"+s);
+    }
+
+    @Override
+    public void onConnectionSuccessRtmp() {
+        System.out.println("RTMP onConnectionSuccessRtmp");
+    }
+
+    @Override
+    public void onDisconnectRtmp() {
+        System.out.println("RTMP onDisconnectRtmp");
+    }
+
+    @Override
+    public void onNewBitrateRtmp(long l) {
+        System.out.println("RTMP onNewBitrateRtmp"+l);
+    }
 
     public interface CameraPreviewListener {
         void onPictureTaken(String originalPicture);
@@ -76,7 +134,6 @@ public class CameraActivity extends Fragment {
     private int numberOfCameras;
     private int cameraCurrentlyLocked;
     private int currentQuality;
-
     private enum RecordingState {
         INITIALIZING,
         STARTED,
@@ -87,7 +144,7 @@ public class CameraActivity extends Fragment {
     private MediaRecorder mRecorder = null;
     private String recordFilePath;
     private float opacity;
-
+    RtmpCamera1 rtmpCamera1;
     // The first rear facing camera
     private int defaultCameraId;
     public String defaultCamera;
@@ -104,13 +161,14 @@ public class CameraActivity extends Fragment {
     public int height;
     public int x;
     public int y;
-
+    private String cameraFace = "rear";
     public void setEventListener(CameraPreviewListener listener) {
         eventListener = listener;
     }
-
     private String appResourcesPackage;
-
+    private  BroadcastSession broadcastSession;
+    private String IVS_RTMPS_URL;
+    private String IVS_STREAMKEY;
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         appResourcesPackage = getActivity().getPackageName();
@@ -118,6 +176,12 @@ public class CameraActivity extends Fragment {
         // Inflate the layout for this fragment
         view = inflater.inflate(getResources().getIdentifier("camera_activity", "layout", appResourcesPackage), container, false);
         createCameraPreview();
+        try{
+            setupAWSStream(getActivity().getApplicationContext());
+           // rtmpCamera1 = new RtmpCamera1(getActivity().getApplicationContext(), this);
+        }catch(Exception ex){
+            System.out.println(ex);
+        }
         return view;
     }
 
@@ -437,10 +501,14 @@ public class CameraActivity extends Fragment {
             } else {
                 Log.d(TAG, "camera parameter NULL");
             }
-
             mPreview.switchCamera(mCamera, cameraCurrentlyLocked);
-
             mCamera.startPreview();
+            if(mPreview.getCameraFacing() == Camera.CameraInfo.CAMERA_FACING_BACK){
+                rtmpCamera1.startPreview(CameraHelper.Facing.BACK);
+            }else{
+                rtmpCamera1.startPreview(CameraHelper.Facing.FRONT);
+            }
+
         }
     }
 
@@ -784,15 +852,18 @@ public class CameraActivity extends Fragment {
         final boolean withFlash,
         final int maxDuration
     ) {
+
         Log.d(TAG, "CameraPreview startRecord camera: " + camera + " width: " + width + ", height: " + height + ", quality: " + quality);
         Activity activity = getActivity();
         muteStream(true, activity);
+
         if (this.mRecordingState == RecordingState.STARTED) {
             Log.d(TAG, "Already Recording");
             return;
         }
 
         this.recordFilePath = filePath;
+
         int mOrientationHint = calculateOrientationHint();
         int videoWidth = 0; //set whatever
         int videoHeight = 0; //set whatever
@@ -809,7 +880,6 @@ public class CameraActivity extends Fragment {
 
         try {
             mRecorder.setCamera(mCamera);
-
             CamcorderProfile profile;
             if (CamcorderProfile.hasProfile(defaultCameraId, CamcorderProfile.QUALITY_HIGH)) {
                 profile = CamcorderProfile.get(defaultCameraId, CamcorderProfile.QUALITY_HIGH);
@@ -835,16 +905,55 @@ public class CameraActivity extends Fragment {
             mRecorder.setOutputFile(filePath);
             mRecorder.setOrientationHint(mOrientationHint);
             mRecorder.setMaxDuration(maxDuration);
-
             mRecorder.prepare();
             Log.d(TAG, "Starting recording");
             mRecorder.start();
+            //startStream(camera);
+            startAWSStream();
             eventListener.onStartRecordVideo();
         } catch (IOException e) {
             eventListener.onStartRecordVideoError(e.getMessage());
         }
     }
-
+    private void setupAWSStream(Context ctx){
+        IVS_RTMPS_URL ="rtmps://417fb5fc65a0.global-contribute.live-video.net:443/app/";
+        IVS_STREAMKEY="sk_us-east-1_VNimowvtpRyc_5hkJLdZ4ZIaMM1t6MWDlhfSk4bTDzV";
+        broadcastSession = new BroadcastSession(ctx,
+                broadcastListener,
+                Presets.Configuration.BASIC_LANDSCAPE,
+                Presets.Devices.FRONT_CAMERA(ctx));
+    }
+    public void startAWSStream(){
+        broadcastSession.start(IVS_RTMPS_URL, IVS_STREAMKEY);
+    }
+    public void stopAWSStream(){
+        broadcastSession.stop();
+    }
+    public void setUpIBMWatsonStream(){
+        rtmp://24695449.fme.ustream.tv/ustreamVideo/24695449
+    }
+    public void startStream(String cameraPosition){
+        cameraFace = cameraPosition;
+        Log.w(TAG, "Camera position found " + cameraPosition );
+        String cameraFace = rtmpCamera1.getCameraFacing().toString();
+        if(cameraPosition.equals("rear")){
+            //rtmpCamera1.switchCamera();
+            rtmpCamera1.startPreview(CameraHelper.Facing.BACK);
+        }else if(cameraPosition.equals("front")){
+          //  rtmpCamera1.switchCamera();
+            rtmpCamera1.startPreview(CameraHelper.Facing.FRONT);
+        }
+        Log.w(TAG, "Camera face set to back " + cameraFace );
+        boolean isPrepareVideo = rtmpCamera1.prepareVideo();//true
+        boolean isPrepareAudio = rtmpCamera1.prepareAudio();//true
+        Log.w(TAG, "isStreaming() start ? " + rtmpCamera1.isStreaming() );
+        boolean isStreaming = rtmpCamera1.isStreaming();// false
+        if(isPrepareVideo && isPrepareAudio && !isStreaming){
+           // rtmpCamera1.startStream("rtmp://testlivevideofast-testlivevideo-aase.channel.media.azure.net:1935/live/5aaf78cd37034e5da84e12c6ce85bd72/azure");
+            rtmpCamera1.startStream("rtmps://b90e9fe4e116.global-contribute.live-video.net:443/app/sk_ap-south-1_yxKK0dRxYIbl_HwEZ84kLZBxR51dt7Q0Is1f4P7iOap");
+        }
+        Log.w(TAG, "isStreaming() start ? " + rtmpCamera1.isStreaming() );
+    }
     public int calculateOrientationHint() {
         DisplayMetrics dm = new DisplayMetrics();
         Camera.CameraInfo info = new Camera.CameraInfo();

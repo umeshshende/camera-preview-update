@@ -28,6 +28,7 @@ import java.io.File;
 import java.util.List;
 import org.json.JSONArray;
 
+
 @CapacitorPlugin(name = "CameraPreview", permissions = { @Permission(strings = { CAMERA }, alias = CameraPreview.CAMERA_PERMISSION_ALIAS) })
 public class CameraPreview extends Plugin implements CameraActivity.CameraPreviewListener {
 
@@ -204,11 +205,12 @@ public class CameraPreview extends Plugin implements CameraActivity.CameraPrevie
 
     @PluginMethod
     public void startRecordVideo(final PluginCall call) {
+        // Check if camera open
         if (this.hasCamera(call) == false) {
             call.reject("Camera is not running");
             return;
         }
-        final String filename = "videoTmp";
+        final String filename = "video";
         VIDEO_FILE_PATH = getActivity().getCacheDir().toString() + "/";
 
         final String position = call.getString("position", "front");

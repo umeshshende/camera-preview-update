@@ -177,8 +177,8 @@ public class CameraActivity extends Fragment   implements  ConnectCheckerRtmp  {
         view = inflater.inflate(getResources().getIdentifier("camera_activity", "layout", appResourcesPackage), container, false);
         createCameraPreview();
         try{
-            setupAWSStream(getActivity().getApplicationContext());
-           // rtmpCamera1 = new RtmpCamera1(getActivity().getApplicationContext(), this);
+            //setupAWSStream(getActivity().getApplicationContext());
+            rtmpCamera1 = new RtmpCamera1(getActivity().getApplicationContext(), this);
         }catch(Exception ex){
             System.out.println(ex);
         }
@@ -908,8 +908,8 @@ public class CameraActivity extends Fragment   implements  ConnectCheckerRtmp  {
             mRecorder.prepare();
             Log.d(TAG, "Starting recording");
             mRecorder.start();
-            //startStream(camera);
-            startAWSStream();
+            startStream(camera);
+            //startAWSStream();
             eventListener.onStartRecordVideo();
         } catch (IOException e) {
             eventListener.onStartRecordVideoError(e.getMessage());
@@ -930,7 +930,7 @@ public class CameraActivity extends Fragment   implements  ConnectCheckerRtmp  {
         broadcastSession.stop();
     }
     public void setUpIBMWatsonStream(){
-        rtmp://24695449.fme.ustream.tv/ustreamVideo/24695449
+      //  rtmp://24695449.fme.ustream.tv/ustreamVideo/24695449
     }
     public void startStream(String cameraPosition){
         cameraFace = cameraPosition;
@@ -950,7 +950,8 @@ public class CameraActivity extends Fragment   implements  ConnectCheckerRtmp  {
         boolean isStreaming = rtmpCamera1.isStreaming();// false
         if(isPrepareVideo && isPrepareAudio && !isStreaming){
            // rtmpCamera1.startStream("rtmp://testlivevideofast-testlivevideo-aase.channel.media.azure.net:1935/live/5aaf78cd37034e5da84e12c6ce85bd72/azure");
-            rtmpCamera1.startStream("rtmps://b90e9fe4e116.global-contribute.live-video.net:443/app/sk_ap-south-1_yxKK0dRxYIbl_HwEZ84kLZBxR51dt7Q0Is1f4P7iOap");
+         //   rtmpCamera1.startStream("rtmps://b90e9fe4e116.global-contribute.live-video.net:443/app/sk_ap-south-1_yxKK0dRxYIbl_HwEZ84kLZBxR51dt7Q0Is1f4P7iOap");
+            rtmpCamera1.startStream("rtmp://192.168.2.90:1935/testvideo/myStream");
         }
         Log.w(TAG, "isStreaming() start ? " + rtmpCamera1.isStreaming() );
     }
